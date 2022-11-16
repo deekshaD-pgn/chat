@@ -2,6 +2,7 @@ import socket
 import utils
 import threading
 import signal
+import json
 
 
 
@@ -77,13 +78,20 @@ class ChatThread(threading.Thread):
                         break 
                     if not line:
                         break   
-                    with chat_lock:
-                        threads = chat_threads.copy()
-                    for thread in threads:
-                        if thread != self:
-                            thread.write_line(line)    
+                    # with chat_lock:
+                    #     threads = chat_threads.copy()
+                    # for thread in threads:
+                    #     if thread != self:
+                    #         thread.write_line(line)
+                    try:
+                        data_in = json.loads(utils.decode_data(line))
+                    except (ValueError,  TypeError):
+                        data_out = {'error':'Invalid input'}
+                    else:
+                        data_out = self.process_data(data_in)
+                    thread.write_line(utils.encode_data(json.dumps(data_out)))
                     
-                
+                        
             finally:
                 print(f'Disconnection from {self.address}')
                 self.chat_socket.close()    
@@ -95,7 +103,11 @@ class ChatThread(threading.Thread):
                 except ValueError:
                     pass
                 else:
-                    del chat_threads[index]        
+                    del chat_threads[index]       
+                    
+    def process_data(self, data_in):
+        print(data_in)
+        return data_in                 
             
 
 
