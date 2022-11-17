@@ -42,7 +42,7 @@ class ChatThread(threading.Thread):
                 return line
          return None   
            
-        
+
     def read_line(self):
         line = self.get_line()
         if line:
@@ -78,19 +78,21 @@ class ChatThread(threading.Thread):
                         break 
                     if not line:
                         break   
-                    # with chat_lock:
-                    #     threads = chat_threads.copy()
-                    # for thread in threads:
-                    #     if thread != self:
-                    #         thread.write_line(line)
-                    try:
-                        data_in = json.loads(utils.decode_data(line))
-                    except (ValueError,  TypeError):
-                        data_out = {'error':'Invalid input'}
-                    else:
-                        data_out = self.process_data(data_in)
-                    thread.write_line(utils.encode_data(json.dumps(data_out)))
+                    print(f'Data from {self.address}: {repr(line)}')
+                    # try:
+                    #     data_in = json.loads(utils.decode_data(line))
+                    # except (ValueError,  TypeError):
+                    #     data_out = {'error':'Invalid input'}
+                    # else:
+                    #     data_out = self.process_data(data_in)
+                    # thread.write_line(utils.encode_data(json.dumps(data_out)))
+                    with chat_lock:
+                        threads = chat_threads.copy()
+                    for thread in threads:
+                        thread.write_line(line)
                     
+            except (ConnectionResetError, BrokenPipeError):
+                print(f'Connection error for {self.address}')
                         
             finally:
                 print(f'Disconnection from {self.address}')
