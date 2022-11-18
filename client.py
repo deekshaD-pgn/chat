@@ -1,93 +1,23 @@
 import tkinter as tk
-import threading
+import network
 import socket
+import json
 
-SERVER_HOST = '10.10.98.69'
+# SERVER_HOST = '10.10.98.79'
+SERVER_HOST = '10.10.98.83'
 SERVER_PORT = 9999
-SERVER_ADDR = (SERVER_HOST, SERVER_PORT)
 
 
-class ChatThread(threading.Thread):
+
+class ChatThread(network.ClientChatThread):
     
-    def __init__(self, chat_socket,address,  *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.chat_socket = chat_socket
-        self.address = address
-        self.buffer = b''
-        self.chat_socket.settimeout(0.5)
-        self.running = False
-        
-        
-    def get_line(self):
-         if b'\n' in self.buffer:
-                index = self.buffer.index(b'\n')
-                line = self.buffer[0:index+1]
-                self.buffer = self.buffer[index+1:]
-                return line
-         return None   
-           
+    def process_packet(self, packet):
+        request = json.loads(packet)
+        if request['cmd'] == 'said': 
+            message = request['params']['name'] +':' + request['params']['message']
+            conversation_input.insert(tk.END, message + '\n')
             
-    def read_line(self):
-        line = self.get_line()
-        if line:
-            return line
-        while self.running:        
-            try:
-                data = self.chat_socket.recv(1024)
-            except TimeoutError:
-                pass
-            else:
-                if data == b'':
-                    raise ConnectionError
-                self.buffer += data
-                line = self.get_line()
-                if line:
-                    return line
-            
-        
-        
-    def write_line(self, data):
-       self.chat_socket.sendall(data)
-            
-        
-        
-    def run(self):
-       
-        try:
-            self.running = True
-            while self.running:
-                try:
-                    line = self.read_line()
-                except ConnectionError:
-                    break 
-                if not line:
-                    break   
-                print(f'Data from {self.address}: {repr(line)}')
-                # try:
-                #     data_in = json.loads(utils.decode_data(line))
-                # except (ValueError,  TypeError):
-                #     data_out = {'error':'Invalid input'}
-                # else:
-                #     data_out = self.process_data(data_in)
-                # thread.write_line(utils.encode_data(json.dumps(data_out)))
-                self.process_data(line)
-                
-        except (ConnectionResetError, BrokenPipeError):
-            print(f'Connection error for {self.address}')
-                    
-        finally:
-            print(f'Disconnection from {self.address}')
-            self.chat_socket.close()    
-        
-          
-                    
-    def process_data(self, data_in):
-         conversation_input.insert(tk.END, data_in.decode())
-
-    def stop(self):
-        self.running = False
-        
-        
+   
 root = tk.Tk()
 root.title("Chat")
 root.geometry("640x480")
@@ -115,7 +45,13 @@ message_input = tk.Entry(root)
 message_input.pack(side=tk.RIGHT, fill=tk.X, expand=tk.YES)
 
 def send_click(event):
-    chat_thread.write_line((message_input.get() + '\n').encode())
+    command = {
+        'cmd': 'say',
+        'params': {
+            'message': message_input.get(),
+        },
+    }
+    chat_thread.write_packet(json.dumps(command))
     message_input.delete(0, tk.END)
     message_input.focus()
 
@@ -123,12 +59,21 @@ send_button.bind('<Button-1>', send_click)
 message_input.bind('<Return>', send_click)
     
 chat_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-chat_socket.connect(SERVER_ADDR)
+chat_socket.connect((SERVER_HOST, SERVER_PORT))
+
 
 try:
-    chat_thread = ChatThread(chat_socket, SERVER_ADDR)
+    chat_thread = ChatThread(chat_socket,(SERVER_HOST, SERVER_PORT))
     chat_thread.start()
     try:    
+        command = {
+        'cmd': 'name',
+        'params': {
+            'name': 'Deeksha',
+        },
+    }
+        
+        chat_thread.write_packet(json.dumps(command))
         root.mainloop()
     finally:
         chat_thread.stop()
